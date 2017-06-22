@@ -2,12 +2,38 @@
 
 // 設定ファイル読み込み
 $config = parse_ini_file(__DIR__ . '/api.conf');
+$hits = 0;
 
-$request_url = create_request_url('艦これ');
+$params = array();
+$params["appid"] = $config['APPLICATION_ID'];
+$params["category_id"] = 2161;
+$params["store_id"] = "wondergoo";
+$params["condition"] = "new";
+$params["seller"] = "store";
+$params["hits"] = 50;
 
-print_r(get_yahoo_result($request_url));
+$result = array();
 
-function create_request_url($keyword){
+$request_url = create_request_url($params);
+get_yahoo_result($request_url);
+
+$offset_idx = 1;
+while(50 * $offset_idx < $hits){
+    $params["offset"] = 50 * $offset_idx;
+    $request_url = create_request_url($params);
+    get_yahoo_result($request_url);
+    $offset_idx += 1;
+}
+
+data_regist($result);
+
+/**
+ * リクエスト用の URL を生成する 
+ * @author rTsujimoto
+ * @param array リクエストパラメータ
+ * @return string URL
+ */
+function create_request_url($params){
     global $config;
 
     // リクエストURL
@@ -25,10 +51,6 @@ function create_request_url($keyword){
     }
 
     // リクエストパラメータ作成
-    $params = array();
-    $params["appid"] = $config['APPLICATION_ID'];
-    $params["query"] = str_replace("%7E", "~", rawurlencode($keyword));
-    
     $param_string = "";
     foreach ($params as $key => $value) {
         $param_string .= "&" . $key . "=" . $value;
@@ -42,21 +64,79 @@ function create_request_url($keyword){
     return $request_url;
 }
     
-
+/**
+ * リクエストを発行する
+ * @author rTsujimoto
+ * @param string URL
+ * @return array 取得結果
+ */
 function get_yahoo_result($url) {
+    global $hits, $result;
+
     // XMLをオブジェクトに代入
     $yahoo_xml = simplexml_load_string(@file_get_contents($url));
     
-    $items = array();
+    $hits = $yahoo_xml->attributes()->totalResultsAvailable;
+
     foreach($yahoo_xml->Result->Hit as $item){
-    
-        $items[] = array(
-        'name' => (string)$item->Name,
-        'url' => (string)$item->Url,
-        'img' => (string)$item->Image->Medium,
-        'price' => (string)$item->Price,
+        $result[] = array(
+            'janCode'     => (string)$item->JanCode, // Janコード
+            'name'        => name_normalize((string)$item->Name),
+            'url'         => (string)$item->Url,
+            'price'       => (int)$item->Price,
+            'releaseDate' => substr((string)$item->ReleaseDate, 0, 10),
+            'category_id' => (string)$item->Category->Current->Id,
         );
-    
     }
-    return $items;
+    return;
+}
+
+function data_regist($insert_data){
+    global $config;
+    $pdo = new PDO('mysql:dbname=' . $config['DATABASE_NAME'] . ';host=' . $config['ACCESS_DB'] . ';charset=utf8mb4', $config['DATABASE_USER'], $config['DATABASE_PASSWORD']);
+    $stmt = $pdo->prepare("INSERT INTO YahooItems (jan, name, url, price, releaseDate, categoryId, updatedDate) VALUES (:jan, :name, :url, :price, :releaseDate, :categoryId, NOW())");
+    foreach($insert_data as $data){
+        $stmt->bindValue(':jan', $data['janCode'], PDO::PARAM_STR);
+        $stmt->bindValue(':name', $data['name'], PDO::PARAM_STR);
+        $stmt->bindValue(':url', $data['url'], PDO::PARAM_STR);
+        $stmt->bindValue(':price', $data['price'], PDO::PARAM_INT);
+        $stmt->bindValue(':categoryId', $data['category_id'], PDO::PARAM_STR);
+
+        if(empty($data['releaseDate'])){
+            $stmt->bindValue(':releaseDate', null, PDO::PARAM_NULL);
+        }else{
+            $stmt->bindValue(':releaseDate', $data['releaseDate'], PDO::PARAM_STR);
+        }
+
+        $stmt->execute();
+    }
+}
+
+/**
+ * 不要な文字列を精査する
+ * @author rTsujimoto
+ * @param string 対象文字列
+ * @return string 精査後の文字列
+ */
+function name_normalize($name){
+
+    // 特定の文字列を削除
+    $name = preg_replace('/\d{8}/i', '', $name);
+    $name = preg_replace('/3DS/i', '', $name);
+    $name = preg_replace('/PS VITA/i', '', $name);
+    $name = preg_replace('/PS4/i', '', $name);
+
+    // カッコとその中身を削除
+    $name = preg_replace('/【.*?】/i', '', $name);
+    $name = preg_replace('/《.*?》/i', '', $name);
+    $name = preg_replace('/＜.*?＞/i', '', $name);
+    $name = preg_replace('/（.*?）/i', '', $name);
+    $name = preg_replace('/\[.*?\]/i', '', $name);
+
+    // 記号名を削除
+    $name = preg_replace('/☆/i', '', $name);
+    $name = preg_replace('/♪/i', '', $name);
+    $name = preg_replace('/◆/i', '', $name);
+
+    return $name;
 }
