@@ -1,6 +1,7 @@
 var twitter = require('twitter'),
     http = require('http'),
-    qs = require('querystring');
+    qs = require('querystring'),
+    async = require('async');
 
 var server = http.createServer();
 var client = new twitter({
@@ -10,57 +11,111 @@ var client = new twitter({
     access_token_secret: process.env.TWITTER_ACCESS_TOKEN_SECRET
 });
 
-function post(tweet){
-    client.post('statuses/update', {status: tweet}, function(error, tweet, response){
+/**
+ * Tweetする
+ * @param {array} res 
+ * @param {array} query リクエストデータ
+ */
+function post(res, query){
+    client.post('statuses/update', {status: query.tweet}, function(error, tweet, response){
         if(!error){
-            console.log(tweet);
+            console.log('tweet success');
+            createResponse(res, 200, null);
         }else{
-            console.log('error');
+            console.log('tweet error');
+            createResponse(res, 500, null);
         }
     });
 }
 
-function get(){
-    client.get('statuses/user_timeline', function(error, tweets, response){
+/**
+ * 特定アカウントのタイムラインを取得する
+ * @param {array} res レスポンス
+ * @param {array} query リクエストデータ
+ */
+function get(res, query){
+
+    params = {screen_name: query.screen_name, count: query.count};
+
+    client.get('statuses/user_timeline', params, function(error, tweets, response){
         if(!error){
-            console.log(tweets);
+            results = [];
+            console.log('get success');
+            tweets.forEach(function(tweet){
+                results.push(tweet.created_at + " : " + tweet.text.replace(/\r?\n/g,""));
+            });
+            createResponse(res, 200, results.join("\n"));
         }else{
-            console.log('error');
+            console.log('get error');
+            createResponse(res, 500, null);
         }
     });
 }
 
-function search(condition){
-    client.get('search/tweets', {q: condition}, function(error, tweets, response){
+/**
+ * Tweet 検索
+ * @param {array} res 
+ * @param {array} query リクエストデータ
+ */
+function search(res, query){
+
+    var params = {q: query.condition, count: query.count};
+
+    client.get('search/tweets', params, function(error, tweets, response){
         if(!error){
             results = [];
             tweets.statuses.forEach(function(tweet){
-                results.push(tweet.created_at + " : " + tweet.text);
+                results.push(tweet.created_at + " : " + tweet.text.replace(/\r?\n/g,""));
             });
-            return results;
+            createResponse(res, 200, results.join("\n"));
         }else{
             console.log('error');
+            createResponse(res, 500, null);
         }
     });
 }
 
-function dispatch(req, query){
+/**
+ * 処理振り分け
+ * @param {array} res レスポンス
+ * @param {array} req リクエスト
+ * @param {array} query リクエストデータ
+ */
+function dispatch(res, req, query){
     switch(req.url){
         case '/post':
-            post(query.tweet);
+            post(res, query);
             break;
         case '/get':
-            get();
+            get(res, query);
             break;
         case '/search':
-            return search(query.condition);
+            search(res, query);
+            break;
         case '/stream':
             strerm();
         default:
             console.log('想定外のリクエスト');
+            createResponse(res, 400, null);
+            break;
     }
 }
 
+/**
+ * レスポンスデータ作成
+ * @param {array} response レスポンス
+ * @param {number} code HTTPリターンコード
+ * @param {string|null} data レスポンスデータ
+ */
+function createResponse(response, code, data){
+    response.writeHead(code, {'Content-Type': 'text/plain'}); 
+    response.write(data);
+    response.end();
+}
+
+/**
+ * HTTP サーバー起動
+ */
 server.on('request', function(req, res){
 
     if(req.method === 'POST'){
@@ -68,23 +123,21 @@ server.on('request', function(req, res){
         bufs.totalLength = 0;
         var query = "";
 
+        // リクエストデータ取得
         req.on("data", function(chunk){
             bufs.push(chunk);
             bufs.totalLength += chunk.length;
         });
 
+        // 処理開始
         req.on("end", function(){
             var data = Buffer.concat(bufs, bufs.totalLength);
             query = qs.parse(data.toString());
-            var resData = dispatch(req, query);
-            // res.writeHead(200, {'Content-Type': 'text/plain'});
-            // res.write(resData);
-            // res.end();
+            dispatch(res, req, query);
         });
     }else{
-        res.writeHead(404, {'Content-Type': 'text/html'});
+        createResponse(res, 404, null);
     }
-    res.end();
 });
 
 server.listen(process.env.POST, process.env.HOST);

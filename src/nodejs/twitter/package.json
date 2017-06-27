@@ -1,0 +1,17 @@
+{
+  "name": "my_twitter_api",
+  "version": "1.0.0",
+  "description": "twitter api",
+  "main": "server.js",
+  "dependencies": {
+    "async": "^2.5.0",
+    "twitter": "^1.7.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "r.tsujimochi",
+  "license": "ISC"
+}
