@@ -1,20 +1,16 @@
 <?php
 
-// 設定ファイル読み込み
-$config = parse_ini_file(__DIR__ . '/api.conf');
+/**
+ * YahooAPI を使用して、商品データを Mysql に登録する
+ * @author rTsujimoto
+ */
+
 $hits = 0;
-
-$params = array();
-$params["appid"] = $config['APPLICATION_ID'];
-$params["category_id"] = 2161;
-$params["store_id"] = "wondergoo";
-$params["condition"] = "new";
-$params["seller"] = "store";
-$params["hits"] = 50;
-
 $result = array();
 
+$params = create_parameter();
 $request_url = create_request_url($params);
+print_r($params);
 get_yahoo_result($request_url);
 
 $offset_idx = 1;
@@ -27,6 +23,23 @@ while(50 * $offset_idx < $hits){
 
 data_regist($result);
 
+/** 
+ * パラメータの作成
+ * @author rTsujimoto
+ * @return array パラメータ
+ */
+function create_parameter(){
+    $params = array();
+    $params["appid"] = getenv('YAHOO_APP_ID');
+    $params["category_id"] = 2161;
+    $params["store_id"] = "wondergoo";
+    $params["condition"] = "new";
+    $params["seller"] = "store";
+    $params["hits"] = 50;
+    $params["query"] = str_replace("%7E", "~", rawurlencode(''));
+    return $params;
+}
+
 /**
  * リクエスト用の URL を生成する 
  * @author rTsujimoto
@@ -34,11 +47,10 @@ data_regist($result);
  * @return string URL
  */
 function create_request_url($params){
-    global $config;
 
     // リクエストURL
     $base_url = '';
-    switch($config['RESULT_FORMAT_TYPE']){
+    switch(getenv('YAHOO_FORMAT_TYPE')){
         case 'XML' :
             $base_url = "http://shopping.yahooapis.jp/ShoppingWebService/V1/itemSearch";
             break;
@@ -75,12 +87,12 @@ function get_yahoo_result($url) {
 
     // XMLをオブジェクトに代入
     $yahoo_xml = simplexml_load_string(@file_get_contents($url));
-    
+
     $hits = $yahoo_xml->attributes()->totalResultsAvailable;
 
     foreach($yahoo_xml->Result->Hit as $item){
         $result[] = array(
-            'janCode'     => (string)$item->JanCode, // Janコード
+            'janCode'     => (string)$item->JanCode,
             'name'        => name_normalize((string)$item->Name),
             'url'         => (string)$item->Url,
             'price'       => (int)$item->Price,
@@ -91,24 +103,32 @@ function get_yahoo_result($url) {
     return;
 }
 
+/**
+ * MySQLにデータを登録する
+ * @author rTsujimoto
+ * @param array insert_data
+ */
 function data_regist($insert_data){
-    global $config;
-    $pdo = new PDO('mysql:dbname=' . $config['DATABASE_NAME'] . ';host=' . $config['ACCESS_DB'] . ';charset=utf8mb4', $config['DATABASE_USER'], $config['DATABASE_PASSWORD']);
-    $stmt = $pdo->prepare("INSERT INTO YahooItems (jan, name, url, price, releaseDate, categoryId, updatedDate) VALUES (:jan, :name, :url, :price, :releaseDate, :categoryId, NOW())");
+    $pdo = new PDO('mysql:dbname=' . getenv('GAME_DATABASE_NAME') . ';host=' . getenv('REMOTE_DATABASE') . ';charset=utf8mb4', getenv('DATABASE_USER'), getenv('DATABASE_PASSWORD'));
+    $insert_stmt = $pdo->prepare("INSERT INTO YahooItems (jan, name, url, price, releaseDate, categoryId, updatedDate) VALUES (:jan, :name, :url, :price, :releaseDate, :categoryId, NOW())");
+    $delete_stmt = $pdo->prepare("DELETE FROM YahooItems WHERE jan = :jan");
     foreach($insert_data as $data){
-        $stmt->bindValue(':jan', $data['janCode'], PDO::PARAM_STR);
-        $stmt->bindValue(':name', $data['name'], PDO::PARAM_STR);
-        $stmt->bindValue(':url', $data['url'], PDO::PARAM_STR);
-        $stmt->bindValue(':price', $data['price'], PDO::PARAM_INT);
-        $stmt->bindValue(':categoryId', $data['category_id'], PDO::PARAM_STR);
+        // バインド変数をセット
+        $delete_stmt->bindValue(':jan', $data['janCode'], PDO::PARAM_STR);
+        $insert_stmt->bindValue(':jan', $data['janCode'], PDO::PARAM_STR);
+        $insert_stmt->bindValue(':name', $data['name'], PDO::PARAM_STR);
+        $insert_stmt->bindValue(':url', $data['url'], PDO::PARAM_STR);
+        $insert_stmt->bindValue(':price', $data['price'], PDO::PARAM_INT);
+        $insert_stmt->bindValue(':categoryId', $data['category_id'], PDO::PARAM_STR);
 
         if(empty($data['releaseDate'])){
-            $stmt->bindValue(':releaseDate', null, PDO::PARAM_NULL);
+            $insert_stmt->bindValue(':releaseDate', null, PDO::PARAM_NULL);
         }else{
-            $stmt->bindValue(':releaseDate', $data['releaseDate'], PDO::PARAM_STR);
+            $insert_stmt->bindValue(':releaseDate', $data['releaseDate'], PDO::PARAM_STR);
         }
 
-        $stmt->execute();
+        $delete_stmt->execute();
+        $insert_stmt->execute();
     }
 }
 
