@@ -10,7 +10,6 @@ $result = array();
 
 $params = create_parameter();
 $request_url = create_request_url($params);
-print_r($params);
 get_yahoo_result($request_url);
 
 $offset_idx = 1;
