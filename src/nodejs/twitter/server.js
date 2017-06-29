@@ -1,7 +1,6 @@
 var twitter = require('twitter'),
     http = require('http'),
-    qs = require('querystring'),
-    async = require('async');
+    qs = require('querystring');
 
 var server = http.createServer();
 var client = new twitter({
