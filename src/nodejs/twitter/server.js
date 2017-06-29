@@ -39,12 +39,8 @@ function get(res, query){
 
     client.get('statuses/user_timeline', params, function(error, tweets, response){
         if(!error){
-            results = [];
             console.log('get success');
-            tweets.forEach(function(tweet){
-                results.push(tweet.created_at + " : " + tweet.text.replace(/\r?\n/g,""));
-            });
-            createResponse(res, 200, results.join("\n"));
+            createResponse(res, 200, JSON.stringify(tweets));
         }else{
             console.log('get error');
             createResponse(res, 500, null);
@@ -63,11 +59,7 @@ function search(res, query){
 
     client.get('search/tweets', params, function(error, tweets, response){
         if(!error){
-            results = [];
-            tweets.statuses.forEach(function(tweet){
-                results.push(tweet.created_at + " : " + tweet.text.replace(/\r?\n/g,""));
-            });
-            createResponse(res, 200, results.join("\n"));
+            createResponse(res, 200, JSON.stringify(tweets));
         }else{
             console.log('error');
             createResponse(res, 500, null);
@@ -108,7 +100,7 @@ function dispatch(res, req, query){
  * @param {string|null} data レスポンスデータ
  */
 function createResponse(response, code, data){
-    response.writeHead(code, {'Content-Type': 'text/plain'}); 
+    response.writeHead(code, {'Content-Type': 'application/json'}); 
     response.write(data);
     response.end();
 }
