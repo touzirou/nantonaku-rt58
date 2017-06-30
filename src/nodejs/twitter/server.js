@@ -16,13 +16,14 @@ var client = new twitter({
  * @param {array} query リクエストデータ
  */
 function post(res, query){
-    client.post('statuses/update', {status: query.tweet}, function(error, tweet, response){
+    client.post('statuses/update', {status: query.tweet}, function(error, tweets, response){
         if(!error){
             console.log('tweet success');
-            createResponse(res, 200, null);
+            createResponse(res, 200, JSON.stringify(tweets));
         }else{
             console.log('tweet error');
-            createResponse(res, 500, null);
+            console.log(error);
+            createResponse(res, 500, '');
         }
     });
 }
