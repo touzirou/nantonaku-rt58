@@ -1,5 +1,13 @@
 <?php
 
+##
+#
+# Purpose     : 対象日付に発売するゲームの一覧を SNS にプッシュする
+# Author      : rTsujimochi
+# Usage       : php sale_check.php 20170704
+#
+##
+
 if(count($argv) < 2){
     return;
 }
@@ -10,7 +18,7 @@ try{
     $game_list = query(search($argv[1]));
 
     if(count($game_list) == 0){
-        echo "発売ゲームなし";
+        echo "発売ゲームなし" . PHP_EOL;
         return;
     }
 
@@ -25,8 +33,7 @@ try{
 
 /**
  * SELECT 文を発行し、結果を返却する
- * @author rTsujimoto
- * @param string 対象日付
+ * @param string $targert_date 対象日付(yyyymmdd)
  * @return array 検索結果
  */
 function search($target_date){
@@ -45,7 +52,8 @@ function search($target_date){
 
 /**
  * SQL文の発行
- * @author rTsujimoto
+ * @param string $sql 実行するSQL文
+ * @return array SQL実行結果
  */
 function query($sql){
     global $mysqli;
@@ -59,6 +67,10 @@ function query($sql){
     return $data;
 }
 
+/**
+ * ゲームのハード機毎に各SNSにプッシュを行う
+ * @param array $game_list ゲームデータ
+ */
 function send_game_list($game_list){
     $target_category = $game_list[0]["cName"];
     $game_array = ['【' . $target_category . '】'];
@@ -73,6 +85,10 @@ function send_game_list($game_list){
     push_line(implode("\n", $game_array));
 }
 
+/**
+ * LINE BOT にメッセージをプッシュする
+ * @param string $message メッセージ
+ */
 function push_line($message){
     // リクエストURL
     $line_url = "https://line.nantonaku-rt58.com";
