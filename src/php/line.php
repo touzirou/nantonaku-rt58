@@ -6,16 +6,14 @@ if(count($argv) < 2){
 
 // リクエストURL
 $line_url = "https://line.nantonaku-rt58.com";
-$data = [];
-$url = "";
 
 // POSTするデータ
 $data = array('events' => array([ "type" => "push", "message" => $argv[1]]));
 
-print_r($content);
-$content_length = strlen($content);
-$options = array(   'https' => array(
+// リクエスト
+$options = array(   'http' => array(
                   'method' => 'POST',
-                  'header' => "Content-Type: application/json\r\n". "Content-Length: $content_length",
-                 'content' => $content));
+                  'header' => "Content-Type: application/json\r\n" .
+                                "Accept: application/json\r\n",
+                 'content' => json_encode( $data )));
 file_get_contents($line_url, false, stream_context_create($options));
