@@ -1,72 +1,43 @@
-
 const http = require('http'),
-    line = require('@line/bot-sdk');
+      aws = require('aws-sdk');
 
-const client = new line.Client({
-    channelAccessToken: process.env.CH_ACCESS_TOKEN
+const port = 3000;
+const functionName = 'line_bot';
+
+aws.config.update({
+    region : "us-west-2"
 });
-
-/**
- * リプライをする
- * @param {*} replyToken 
- * @param {*} text 
- */
-function reply(replyToken, text){
-    var message = {
-        type: 'text',
-        text: text
-    };
-    client.replyMessage(replyToken, message).then(() => {
-
-    }).catch((err) => {
-        // error
-    });
-}
-
-/**
- * プッシュする
- * @param {*} to 
- * @param {*} text 
- */
-function push(to, text){
-
-    var message = {
-        type: 'text',
-        text: text
-    };
-
-    client.pushMessage(to, message).then(() => {
-
-    }).catch((err) => {
-        // error
-    });
-}
+var lambda = new aws.Lambda();
 
 http.createServer((req, res) => {
+    // POST のみ有効
     if(req.url !== '/' || req.method !== 'POST'){
         res.writeHead(200, {'Content-Type': 'text/plain'});
         res.end('');
     }
 
+    // リクエストデータ受信
     let body = '';
     req.on('data', (chunk) => {
         body += chunk;
     });
+    // 受信完了
     req.on('end', () => {
         if(body !== ''){
-            let WebhookEventObject = JSON.parse(body).events[0];
-            switch(WebhookEventObject.type){
-                case 'message':
-                    reply(WebhookEventObject.replyToken, WebhookEventObject.message.text);
-                    break;
-                case 'push':
-                    push(process.env.TO, WebhookEventObject.message);
-                    break;
-            }
+            var params = {
+                FunctionName: functionName,
+                InvokeArgs: body
+            };
+
+            // Lambda呼出し
+            lambda.invokeAsync(params, function(err, data) {
+                if (err) console.log(err, err.stack);
+                else     console.log(data);
+            });
         }
         res.writeHead(200, {'Content-Type': 'test/plain'});
         res.end();
     });
-}).listen(process.env.PORT);
+}).listen(port);
 
-console.log(`Server running at ${process.env.PORT}`);
+console.log(`Server running at ${port}`);
