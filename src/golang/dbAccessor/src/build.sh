@@ -1,0 +1,3 @@
+#!/bin/sh
+go-bindata -o bindata.go ./views/...
+go build main.go bindata.go
